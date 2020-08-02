@@ -91,6 +91,15 @@ local prev = {
 
 o.placeholder = mp.command_native({"expand-path", o.placeholder})
 
+function hasValue(tab, value)
+    for i, val in ipairs(tab) do
+        if val == value then
+            return true
+        end
+    end
+    return false
+end
+
 --splits the string into a table on the semicolons
 function create_table(input)
     local t={}
@@ -181,6 +190,24 @@ function isValidCoverart(file)
         msg.debug('"' .. fileext .. '" valid, checking for valid name...')
     end
     return true
+end
+
+function isValidCoverart_full(file)
+    msg.verbose('testing if ' .. file .. ' is valid coverart')
+    local filename, fileext = splitFileName(file)
+
+    if o.imageExts ~= "" and not imageExts[fileext] then
+        msg.debug('"' .. fileext .. '" not in whitelist')
+        return false
+    else
+        msg.debug('"' .. fileext .. '" valid, checking for valid name...')
+    end
+    if o.names == "" or names[filename] then
+        msg.debug('filename valid')
+        return true
+    end
+    msg.debug('filename invalid')
+    return false
 end
 
 --loads the coverart
@@ -364,7 +391,7 @@ end)
 --skips coverart in the playlist
 if o.skip_coverart then
     mp.add_hook('on_load', 30, function()
-        if isValidCoverart(mp.get_property('filename', '')) and mp.get_property_number('playlist-count') > 1 then
+        if (isValidCoverart_full(mp.get_property('filename', '')) or (isValidCoverart(mp.get_property('filename', '')) and hasValue(prev.coverart, mp.get_property('filename', '')))) and mp.get_property_number('playlist-count') > 1 then
             msg.info('skipping coverart in playlist')
             mp.command('playlist-next')
         end
