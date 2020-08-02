@@ -26,6 +26,9 @@ local o = {
     --leaving both lists blank is not a good idea
     imageExts = 'jpg;jpeg;png;bmp;gif',
 
+    --will pick any image if it can't find one with our preferred names
+    any_image_fallback = false,
+
     --by default it only loads coverart if it detects the file is an audio file
     --an audio file is one where mpv reports the first stream as being audio or albumart
     always_scan_coverart = false,
@@ -177,12 +180,7 @@ function isValidCoverart(file)
     else
         msg.debug('"' .. fileext .. '" valid, checking for valid name...')
     end
-    if o.names == "" or names[filename] then
-        msg.debug('filename valid')
-        return true
-    end
-    msg.debug('filename invalid')
-    return false
+    return true
 end
 
 --loads the coverart
@@ -215,11 +213,28 @@ function addFromDirectory(directory)
     msg.verbose('scanning files in ' .. directory)
 
     --loops through the all the files in the directory to find if any are valid cover art
+    local fallbacks = {}
     local success = 0
     for i, file in ipairs(files) do
         --if the name matches one in the whitelist then load it
         if isValidCoverart(file) then
-            msg.verbose(file .. ' found in whitelist - adding as extra video track...')
+            local filename, fileext = splitFileName(file)
+            if o.names == "" or names[filename] then
+                msg.debug('filename valid')
+                msg.verbose(file .. ' found in whitelist - adding as extra video track...')
+                success = 1
+                loadCover(utils.join_path(directory, file))
+                if not o.load_extra_files then return 1 end
+            elseif o.any_image_fallback then
+                msg.debug('filename invalid - adding to fallback list...')
+                table.insert(fallbacks, file)
+            else
+                msg.debug('filename invalid')
+            end
+        end
+    end
+    if o.any_image_fallback and success == 0 then
+        for i, file in ipairs(fallbacks) do
             success = 1
             loadCover(utils.join_path(directory, file))
             if not o.load_extra_files then return 1 end
@@ -300,16 +315,33 @@ function checkForCoverart()
         --loads files from playlist
         msg.verbose('searching for coverart in current playlist')
         local pls = mp.get_property_native('playlist')
+        local fallbacks = {}
 
         for i,v in ipairs(pls)do
             local dir, name = utils.split_path(v.filename)
             if (not o.enforce_playlist_directory) or utils.join_path(workingDirectory, dir) == directory then
                 if isValidCoverart(name) then
-                    msg.verbose('found cover in playlist')
-                    loadCover(v.filename)
-                    if not o.load_extra_files then return end
-                    succeeded = 1
+                    local filename, fileext = splitFileName(name)
+                    if o.names == "" or names[filename] then
+                        msg.debug('filename valid')
+                        msg.verbose('found cover in playlist')
+                        loadCover(v.filename)
+                        if not o.load_extra_files then return end
+                        succeeded = 1
+                    elseif o.any_image_fallback then
+                        msg.debug('filename invalid - adding to fallback list...')
+                        table.insert(fallbacks, v.filename)
+                    else
+                        msg.debug('filename invalid')
+                    end
                 end
+            end
+        end
+        if o.any_image_fallback and succeeded ~= 1 then
+            for i, file in ipairs(fallbacks) do
+                succeeded = 1
+                loadCover(file)
+                if not o.load_extra_files then return 1 end
             end
         end
     end
