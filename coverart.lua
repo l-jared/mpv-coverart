@@ -223,7 +223,7 @@ end
 --adds the new file to the playing list
 --if there is no video track currently selected then it autoloads track #1
 function addVideo(path)
-    if mp.get_property_number('vid', 0) == 0 and (mp.get_property_number('track-list/count') == 1 or mp.get_property('options/vid') == "auto") then
+    if mp.get_property_number('vid', 0) == 0 and mp.get_property('options/vid') == "auto" then
         mp.commandv('video-add', path)
     else
         mp.commandv('video-add', path, "auto")
